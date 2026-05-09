@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+
+# Local source PDFs and downloaded web materials are inputs, not public artifacts.
+docs/raw/*
+!docs/raw/README.md
+
