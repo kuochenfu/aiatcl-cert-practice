@@ -134,9 +134,9 @@ dd {
 }
 
 .primary-action,
-.secondary-action {
+.secondary-action,
+.ghost-action {
   min-height: 44px;
-  border: 0;
   border-radius: 8px;
   cursor: pointer;
   font-weight: 850;
@@ -150,9 +150,22 @@ dd {
 }
 
 .secondary-action {
+  border: 0;
   padding: 10px 16px;
   background: #1d5f50;
   color: #ffffff;
+}
+
+.ghost-action {
+  padding: 10px 16px;
+  border: 1px solid rgba(22, 33, 27, 0.2);
+  background: #fffdf8;
+  color: #1d5f50;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .scope-band,
@@ -201,6 +214,68 @@ dd {
   display: block;
   margin: 8px 0;
   font-size: 1.05rem;
+}
+
+.miss-book-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border: 1px solid rgba(22, 33, 27, 0.14);
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.miss-book-panel strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 1.15rem;
+}
+
+.miss-book-panel p {
+  margin: 0;
+  color: #43524b;
+  line-height: 1.65;
+}
+
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.resource-grid,
+.topic-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.resource-card {
+  min-height: 128px;
+  padding: 16px;
+  border: 1px solid rgba(22, 33, 27, 0.14);
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #16211b;
+  text-decoration: none;
+}
+
+.resource-card:hover {
+  border-color: #196f5a;
+  background: #edf7f1;
+}
+
+.resource-card strong,
+.resource-card span {
+  display: block;
+}
+
+.resource-card span {
+  margin-top: 8px;
+  color: #43524b;
+  line-height: 1.55;
 }
 
 .scope-grid span {
@@ -409,6 +484,60 @@ dd {
   margin: 0 auto;
 }
 
+.topic-analysis {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px clamp(20px, 7vw, 96px) 32px;
+}
+
+.topic-card {
+  padding: 16px;
+  border: 1px solid rgba(22, 33, 27, 0.14);
+  border-radius: 8px;
+  background: #fffdf8;
+}
+
+.topic-card.weak {
+  border-color: rgba(189, 93, 76, 0.45);
+  background: #fff8f4;
+}
+
+.topic-card div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.topic-card span {
+  color: #5c6b63;
+  font-weight: 850;
+}
+
+.topic-card p {
+  margin: 10px 0 0;
+  color: #43524b;
+  line-height: 1.55;
+}
+
+.topic-bar {
+  height: 9px;
+  margin-top: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e6e1d8;
+}
+
+.topic-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #196f5a;
+}
+
+.topic-card.weak .topic-bar span {
+  background: #bd5d4c;
+}
+
 @media (max-width: 760px) {
   .hero,
   .review-hero {
@@ -439,5 +568,10 @@ dd {
   .rule-grid,
   .score-grid {
     grid-template-columns: 1fr;
+  }
+
+  .miss-book-panel {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

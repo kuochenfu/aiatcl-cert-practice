@@ -12,6 +12,23 @@ import {
 } from "./exam";
 
 type ViewMode = "intro" | "exam" | "review";
+type StoredMiss = {
+  questionId: string;
+  paperId: string;
+  missedAt: string;
+};
+
+type StudyResource = {
+  title: string;
+  description: string;
+  url: string;
+};
+
+type TopicSummary = {
+  topic: string;
+  total: number;
+  correct: number;
+};
 
 const app = document.querySelector<HTMLDivElement>("#app");
 
@@ -26,14 +43,103 @@ let startedAt = 0;
 let remainingSeconds = examRules.durationMinutes * 60;
 let timerId: number | undefined;
 let selectedPaperId = examPapers[0].id;
+let questionOrder: string[] = [];
+let choiceOrder: Record<string, Choice["id"][]> = {};
+let reviewModeLabel = "";
+
+const missesStorageKey = "aiatcl-cert-practice-misses";
 
 const currentPaper = (): ExamPaper =>
   examPapers.find((paper) => paper.id === selectedPaperId) ?? examPapers[0];
 
-const currentQuestions = (): Question[] => currentPaper().questions;
+const selectedPaper = (): ExamPaper | undefined =>
+  examPapers.find((paper) => paper.id === selectedPaperId);
+
+const baseQuestions = (): Question[] => currentPaper().questions;
+
+const allQuestions = (): Question[] => examPapers.flatMap((paper) => paper.questions);
+
+const getOrderedQuestions = (paper: ExamPaper = currentPaper()): Question[] => {
+  if (selectedPaperId === "miss-book") {
+    const byId = new Map(allQuestions().map((question) => [question.id, question]));
+    return questionOrder
+      .map((questionId) => byId.get(questionId))
+      .filter((question): question is Question => Boolean(question));
+  }
+  const fallback = paper.questions;
+  if (questionOrder.length === 0) return fallback;
+  const byId = new Map(fallback.map((question) => [question.id, question]));
+  const ordered = questionOrder
+    .map((questionId) => byId.get(questionId))
+    .filter((question): question is Question => Boolean(question));
+  return ordered.length > 0 ? ordered : fallback;
+};
+
+const currentQuestions = (): Question[] => getOrderedQuestions();
 
 const questionNumber = (questionId: string): number =>
   currentQuestions().findIndex((question) => question.id === questionId) + 1;
+
+const shuffle = <T>(items: T[]): T[] => {
+  const result = [...items];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
+};
+
+const buildChoiceOrder = (questions: Question[]): Record<string, Choice["id"][]> =>
+  Object.fromEntries(questions.map((question) => [question.id, shuffle(question.choices.map((choice) => choice.id))]));
+
+const orderedChoices = (question: Question): Question["choices"] => {
+  const orderedIds = choiceOrder[question.id] ?? question.choices.map((choice) => choice.id);
+  return orderedIds
+    .map((choiceId) => question.choices.find((choice) => choice.id === choiceId))
+    .filter((choice): choice is Choice => Boolean(choice));
+};
+
+const loadMisses = (): StoredMiss[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(missesStorageKey) ?? "[]");
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveMisses = (misses: StoredMiss[]): void => {
+  localStorage.setItem(missesStorageKey, JSON.stringify(misses.slice(-120)));
+};
+
+const missedQuestionIds = (): Set<string> => new Set(loadMisses().map((miss) => miss.questionId));
+
+const updateMissBook = (): void => {
+  const existing = new Map(loadMisses().map((miss) => [miss.questionId, miss]));
+  const now = new Date().toISOString();
+  currentQuestions().forEach((question) => {
+    if (!isCorrect(question, answers[question.id])) {
+      existing.set(question.id, {
+        questionId: question.id,
+        paperId: selectedPaperId,
+        missedAt: now
+      });
+    } else {
+      existing.delete(question.id);
+    }
+  });
+  saveMisses([...existing.values()]);
+};
+
+const clearMissBook = (): void => {
+  localStorage.removeItem(missesStorageKey);
+  if (viewMode === "intro") render();
+};
+
+const missBookQuestions = (): Question[] => {
+  const missIds = missedQuestionIds();
+  return allQuestions().filter((question) => missIds.has(question.id));
+};
 
 const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
@@ -43,6 +149,45 @@ const formatTime = (seconds: number): string => {
 
 const answeredCount = (): number =>
   currentQuestions().filter((question) => (answers[question.id] ?? []).length > 0).length;
+
+const topicSummaries = (questions: Question[], currentAnswers: AnswerState): TopicSummary[] => {
+  const summaries = new Map<string, TopicSummary>();
+  questions.forEach((question) => {
+    const summary = summaries.get(question.topic) ?? { topic: question.topic, total: 0, correct: 0 };
+    summary.total += 1;
+    if (isCorrect(question, currentAnswers[question.id])) summary.correct += 1;
+    summaries.set(question.topic, summary);
+  });
+  return [...summaries.values()].sort((a, b) => a.correct / a.total - b.correct / b.total);
+};
+
+const studyResources: StudyResource[] = [
+  {
+    title: "AIATCL 測驗規則",
+    description: "確認題數、時間、配分、通過標準與官方認證資訊。",
+    url: "https://aiacademy.tw/aiatcl/"
+  },
+  {
+    title: "NIST AI Risk Management Framework",
+    description: "補強可信任 AI、風險管理、治理流程與生成式 AI profile。",
+    url: "https://www.nist.gov/itl/ai-risk-management-framework"
+  },
+  {
+    title: "EU AI Act Implementation Timeline",
+    description: "掌握 2026 前後透明度、高風險系統與 AI literacy 時程。",
+    url: "https://ai-act-service-desk.ec.europa.eu/en/ai-act/timeline/timeline-implementation-eu-ai-act"
+  },
+  {
+    title: "OWASP LLM & Prompt Injection",
+    description: "複習提示注入、敏感資訊揭露、RAG 信任邊界與 LLM 應用安全。",
+    url: "https://owasp.org/www-project-top-10-for-large-language-model-applications/"
+  },
+  {
+    title: "Learn Prompting",
+    description: "補強提示工程、角色設定、限制條件與拒答策略。",
+    url: "https://learnprompting.org/zh-tw/docs/intro"
+  }
+];
 
 const formatChoiceIds = (choiceIds: Choice["id"][] = []): string =>
   choiceIds.length === 0 ? "未作答" : [...choiceIds].sort().join("、");
@@ -135,8 +280,44 @@ const renderWrongAnswerStudy = (question: Question, selected: Choice["id"][]): s
   `;
 };
 
+const prepareAttempt = (questions: Question[], label = ""): void => {
+  questionOrder = [
+    ...shuffle(questions.filter((question) => question.kind === "single")).map((question) => question.id),
+    ...shuffle(questions.filter((question) => question.kind === "multiple")).map((question) => question.id),
+    ...shuffle(questions.filter((question) => question.kind === "reading")).map((question) => question.id)
+  ];
+  choiceOrder = buildChoiceOrder(questions);
+  reviewModeLabel = label;
+};
+
 const beginExam = (paperId: string = selectedPaperId): void => {
   selectedPaperId = paperId;
+  prepareAttempt(baseQuestions());
+  answers = {};
+  submitted = false;
+  viewMode = "exam";
+  remainingSeconds = examRules.durationMinutes * 60;
+  startedAt = Date.now();
+  window.clearInterval(timerId);
+  timerId = window.setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startedAt) / 1000);
+    remainingSeconds = Math.max(examRules.durationMinutes * 60 - elapsed, 0);
+    if (remainingSeconds === 0 && !submitted) {
+      submitExam();
+      return;
+    }
+    render();
+  }, 1000);
+  render();
+};
+
+const beginMissBook = (): void => {
+  const missed = missBookQuestions();
+  if (missed.length === 0) return;
+  selectedPaperId = "miss-book";
+  questionOrder = shuffle(missed).map((question) => question.id);
+  choiceOrder = buildChoiceOrder(missed);
+  reviewModeLabel = `錯題本 ${missed.length} 題`;
   answers = {};
   submitted = false;
   viewMode = "exam";
@@ -159,6 +340,7 @@ const submitExam = (): void => {
   submitted = true;
   viewMode = "review";
   window.clearInterval(timerId);
+  updateMissBook();
   render();
 };
 
@@ -220,6 +402,19 @@ const renderIntro = (): string => `
     </div>
   </section>
   <section class="scope-band">
+    <h2>錯題本</h2>
+    <div class="miss-book-panel">
+      <div>
+        <strong>${missBookQuestions().length} 題待複習</strong>
+        <p>交卷後答錯或未作答的題目會自動加入錯題本；下次答對會自動移除。</p>
+      </div>
+      <div class="panel-actions">
+        <button class="secondary-action" data-action="miss-book" ${missBookQuestions().length === 0 ? "disabled" : ""}>只練錯題</button>
+        <button class="ghost-action" data-action="clear-misses" ${missBookQuestions().length === 0 ? "disabled" : ""}>清空錯題</button>
+      </div>
+    </div>
+  </section>
+  <section class="scope-band">
     <h2>測驗範圍</h2>
     <div class="scope-grid">
       ${[
@@ -233,6 +428,21 @@ const renderIntro = (): string => `
         "2026 AI 治理、EU AI Act、NIST AI RMF、OWASP LLM 風險"
       ]
         .map((item) => `<span>${item}</span>`)
+        .join("")}
+    </div>
+  </section>
+  <section class="scope-band">
+    <h2>延伸閱讀</h2>
+    <div class="resource-grid">
+      ${studyResources
+        .map(
+          (resource) => `
+            <a class="resource-card" href="${resource.url}" target="_blank" rel="noreferrer">
+              <strong>${resource.title}</strong>
+              <span>${resource.description}</span>
+            </a>
+          `
+        )
         .join("")}
     </div>
   </section>
@@ -251,7 +461,7 @@ const renderQuestion = (question: Question): string => {
       </div>
       <h3>${question.prompt}</h3>
       <div class="choices" role="group" aria-label="${question.prompt}">
-        ${question.choices
+        ${orderedChoices(question)
           .map((choice) => {
             const active = selected.includes(choice.id);
             const answer = submitted && question.answer.includes(choice.id);
@@ -280,17 +490,17 @@ const renderExam = (): string => `
   <header class="sticky-status">
     <div>
       <p class="eyebrow">練習中</p>
-      <h1>${currentPaper().title}</h1>
+      <h1>${reviewModeLabel || currentPaper().title}</h1>
     </div>
     <div class="status-metrics">
-      <span>${answeredCount()} / ${examRules.totalQuestions} 已作答</span>
+      <span>${answeredCount()} / ${currentQuestions().length} 已作答</span>
       <strong>${formatTime(remainingSeconds)}</strong>
       <button class="secondary-action" data-action="submit" ${submitted ? "disabled" : ""}>交卷</button>
     </div>
   </header>
   <section class="source-note">
-    <strong>${currentPaper().description}</strong>
-    <span>${currentPaper().updatedContext}</span>
+    <strong>${reviewModeLabel || currentPaper().description}</strong>
+    <span>${selectedPaperId === "miss-book" ? "錯題本會隨答題結果更新：答對移除，答錯保留。" : currentPaper().updatedContext}</span>
   </section>
   <section class="question-section">
     <h2>單選題</h2>
@@ -317,6 +527,34 @@ const renderExam = (): string => `
   </section>
 `;
 
+const renderTopicAnalysis = (questions: Question[], currentAnswers: AnswerState): string => {
+  const summaries = topicSummaries(questions, currentAnswers);
+  return `
+    <section class="topic-analysis">
+      <h2>領域分析</h2>
+      <div class="topic-grid">
+        ${summaries
+          .map((summary) => {
+            const percent = Math.round((summary.correct / summary.total) * 100);
+            return `
+              <div class="topic-card ${percent < 70 ? "weak" : ""}">
+                <div>
+                  <strong>${summary.topic}</strong>
+                  <span>${summary.correct} / ${summary.total}</span>
+                </div>
+                <div class="topic-bar" aria-label="${summary.topic} ${percent}%">
+                  <span style="width: ${percent}%"></span>
+                </div>
+                <p>${percent < 70 ? studyNoteFor(questions.find((question) => question.topic === summary.topic) ?? questions[0]) : "這個領域掌握度不錯，複習時可改看易混淆概念。"}</p>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    </section>
+  `;
+};
+
 const renderReview = (): string => {
   const report = scoreExam(currentQuestions(), answers);
   return `
@@ -340,9 +578,10 @@ const renderReview = (): string => {
         )
         .join("")}
     </section>
+    ${renderTopicAnalysis(currentQuestions(), answers)}
     <section class="source-note">
       <strong>本卷參考更新脈絡</strong>
-      <span>${currentPaper().sourceNotes.join(" / ")}</span>
+      <span>${selectedPaper()?.sourceNotes.join(" / ") ?? "錯題本由各測驗卷錯題彙整而成，請回到原題解析與領域分析補強薄弱概念。"}</span>
     </section>
     ${renderExam()}
   `;
@@ -366,6 +605,8 @@ app.addEventListener("click", (event) => {
   if (actionButton) {
     const action = actionButton.dataset.action;
     if (action === "begin") beginExam(actionButton.dataset.paperId);
+    if (action === "miss-book") beginMissBook();
+    if (action === "clear-misses") clearMissBook();
     if (action === "submit") submitExam();
     if (action === "restart") restart();
     return;
