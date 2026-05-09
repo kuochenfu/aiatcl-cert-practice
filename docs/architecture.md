@@ -11,7 +11,7 @@
 
 - `scripts/download-materials.ts`: Extracted source-link manifest downloader. It downloads the PDF-linked resources into `docs/raw/downloaded` and writes `docs/raw/materials-manifest.json`.
 - `src/exam.ts`: Exam rules, scoring helpers, answer comparison, and section summaries.
-- `src/questionBank.ts`: TypeScript question bank generated from the syllabus scope and reading PDF topics.
+- `src/questionBank.ts`: TypeScript-native five-paper exam bank generated from the syllabus scope, reading PDF topics, and 2026 public context.
 - `src/main.ts`: Browser state, rendering, timer, answer capture, grading flow, and review mode.
 - `src/styles.css`: App layout and interaction styling.
 
@@ -29,10 +29,11 @@ This keeps the page easy to extend later with multiple generated exams, seeded r
 
 ## Generation Strategy
 
-The first exam set is deterministic and source-aligned:
+The exam bank is deterministic and source-aligned:
 
-- Single-choice questions cover AI history, ML task types, deep learning, transfer learning, cloud/edge, digital twins, GenAI, prompt engineering, RAG, and AI safety.
-- Multiple-choice questions cover learning paradigms, project workflow, neural network types, governance risks, and LLMOps.
-- Reading questions are grouped into four scenarios: smart manufacturing, healthcare federated learning, enterprise GenAI rollout, and autonomous driving.
+- Five complete papers are generated, each with 15 single-choice, 5 multiple-choice, and 20 reading-group questions.
+- Single-choice questions cover AI history, ML task types, deep learning, transfer learning, cloud/edge, digital twins, GenAI, prompt engineering, RAG, LLMOps, AI governance, and AI safety.
+- Multiple-choice questions cover learning paradigms, project workflow, neural network tasks, governance risks, NIST AI RMF, EU AI Act context, OWASP LLM risks, and RAG evaluation.
+- Reading questions are grouped into scenarios such as smart manufacturing, healthcare federated learning, enterprise GenAI rollout, autonomous driving, AI Act governance, RAG security incidents, education AI tutors, agriculture edge AI, recruiting AI, traffic AI, and local small-model deployment.
 
 Future generation can add a TypeScript content pipeline that ingests extracted PDF text, maps chunks to syllabus objectives, and emits validated `Question[]` modules.

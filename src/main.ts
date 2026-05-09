@@ -1,8 +1,9 @@
 import "./styles.css";
-import { allQuestions, readingSets } from "./questionBank";
+import { examPapers } from "./questionBank";
 import {
   type AnswerState,
   type Choice,
+  type ExamPaper,
   type Question,
   examRules,
   isCorrect,
@@ -24,8 +25,15 @@ let submitted = false;
 let startedAt = 0;
 let remainingSeconds = examRules.durationMinutes * 60;
 let timerId: number | undefined;
+let selectedPaperId = examPapers[0].id;
 
-const questionIndex = new Map(allQuestions.map((question, index) => [question.id, index + 1]));
+const currentPaper = (): ExamPaper =>
+  examPapers.find((paper) => paper.id === selectedPaperId) ?? examPapers[0];
+
+const currentQuestions = (): Question[] => currentPaper().questions;
+
+const questionNumber = (questionId: string): number =>
+  currentQuestions().findIndex((question) => question.id === questionId) + 1;
 
 const formatTime = (seconds: number): string => {
   const minutes = Math.floor(seconds / 60);
@@ -34,9 +42,10 @@ const formatTime = (seconds: number): string => {
 };
 
 const answeredCount = (): number =>
-  allQuestions.filter((question) => (answers[question.id] ?? []).length > 0).length;
+  currentQuestions().filter((question) => (answers[question.id] ?? []).length > 0).length;
 
-const beginExam = (): void => {
+const beginExam = (paperId: string = selectedPaperId): void => {
+  selectedPaperId = paperId;
   answers = {};
   submitted = false;
   viewMode = "exam";
@@ -90,8 +99,8 @@ const renderIntro = (): string => `
   <section class="hero">
     <div class="hero-copy">
       <p class="eyebrow">AIATCL™ 素養級認證練習</p>
-      <h1>50 分鐘完成一份符合官方題型比例的練習測驗</h1>
-      <p class="lead">依據 syllabus v.7 的測驗規則建立：單選 15 題、多選 5 題、閱讀題組 20 題，每題 2.5 分，80 分通過。</p>
+      <h1>5 份符合官方題型比例的 2026 衝刺測驗</h1>
+      <p class="lead">依據 syllabus v.7 與 2026 可查公開資訊建立：單選 15 題、多選 5 題、閱讀題組 20 題，每題 2.5 分，80 分通過。</p>
     </div>
     <div class="exam-panel">
       <dl class="rule-grid">
@@ -100,7 +109,23 @@ const renderIntro = (): string => `
         <div><dt>通過</dt><dd>${examRules.passScore} 分</dd></div>
         <div><dt>容錯</dt><dd>最多錯 ${examRules.maxWrongToPass} 題</dd></div>
       </dl>
-      <button class="primary-action" data-action="begin">開始練習</button>
+      <button class="primary-action" data-action="begin" data-paper-id="${selectedPaperId}">開始目前選擇</button>
+    </div>
+  </section>
+  <section class="scope-band">
+    <h2>選擇測驗卷</h2>
+    <div class="paper-grid">
+      ${examPapers
+        .map(
+          (paper, index) => `
+            <button class="paper-option ${paper.id === selectedPaperId ? "active" : ""}" data-action="begin" data-paper-id="${paper.id}">
+              <span>卷 ${index + 1}</span>
+              <strong>${paper.title}</strong>
+              <small>${paper.description}</small>
+            </button>
+          `
+        )
+        .join("")}
     </div>
   </section>
   <section class="scope-band">
@@ -113,7 +138,8 @@ const renderIntro = (): string => `
         "聯邦學習、雲端與邊緣運算",
         "AI 輔助數位孿生",
         "生成式 AI、Prompt、RAG",
-        "AI 倫理、治理與資安"
+        "AI 倫理、治理與資安",
+        "2026 AI 治理、EU AI Act、NIST AI RMF、OWASP LLM 風險"
       ]
         .map((item) => `<span>${item}</span>`)
         .join("")}
@@ -127,7 +153,7 @@ const renderQuestion = (question: Question): string => {
   return `
     <article class="question-card ${submitted ? (correct ? "correct" : "wrong") : ""}" id="${question.id}">
       <div class="question-meta">
-        <span>第 ${questionIndex.get(question.id)} 題</span>
+        <span>第 ${questionNumber(question.id)} 題</span>
         <span>${sectionLabel(question.kind)}</span>
         <span>${question.topic}</span>
         <span>難度 ${question.difficulty}</span>
@@ -160,25 +186,30 @@ const renderExam = (): string => `
   <header class="sticky-status">
     <div>
       <p class="eyebrow">練習中</p>
-      <h1>AIATCL 模擬測驗</h1>
+      <h1>${currentPaper().title}</h1>
     </div>
     <div class="status-metrics">
       <span>${answeredCount()} / ${examRules.totalQuestions} 已作答</span>
       <strong>${formatTime(remainingSeconds)}</strong>
-      <button class="secondary-action" data-action="submit">交卷</button>
+      <button class="secondary-action" data-action="submit" ${submitted ? "disabled" : ""}>交卷</button>
     </div>
   </header>
+  <section class="source-note">
+    <strong>${currentPaper().description}</strong>
+    <span>${currentPaper().updatedContext}</span>
+  </section>
   <section class="question-section">
     <h2>單選題</h2>
-    ${allQuestions.filter((question) => question.kind === "single").map(renderQuestion).join("")}
+    ${currentQuestions().filter((question) => question.kind === "single").map(renderQuestion).join("")}
   </section>
   <section class="question-section">
     <h2>多選題</h2>
-    ${allQuestions.filter((question) => question.kind === "multiple").map(renderQuestion).join("")}
+    ${currentQuestions().filter((question) => question.kind === "multiple").map(renderQuestion).join("")}
   </section>
   <section class="question-section">
     <h2>閱讀題組</h2>
-    ${readingSets
+    ${currentPaper()
+      .readingSets
       .map(
         (set) => `
           <article class="passage">
@@ -193,7 +224,7 @@ const renderExam = (): string => `
 `;
 
 const renderReview = (): string => {
-  const report = scoreExam(allQuestions, answers);
+  const report = scoreExam(currentQuestions(), answers);
   return `
     <header class="review-hero ${report.passed ? "passed" : "failed"}">
       <div>
@@ -214,6 +245,10 @@ const renderReview = (): string => {
           `
         )
         .join("")}
+    </section>
+    <section class="source-note">
+      <strong>本卷參考更新脈絡</strong>
+      <span>${currentPaper().sourceNotes.join(" / ")}</span>
     </section>
     ${renderExam()}
   `;
@@ -236,7 +271,7 @@ app.addEventListener("click", (event) => {
   const actionButton = target.closest<HTMLButtonElement>("[data-action]");
   if (actionButton) {
     const action = actionButton.dataset.action;
-    if (action === "begin") beginExam();
+    if (action === "begin") beginExam(actionButton.dataset.paperId);
     if (action === "submit") submitExam();
     if (action === "restart") restart();
     return;
@@ -245,7 +280,7 @@ app.addEventListener("click", (event) => {
   const choiceButton = target.closest<HTMLButtonElement>("[data-question][data-choice]");
   if (!choiceButton || submitted) return;
 
-  const question = allQuestions.find((item) => item.id === choiceButton.dataset.question);
+  const question = currentQuestions().find((item) => item.id === choiceButton.dataset.question);
   const choice = choiceButton.dataset.choice as Choice["id"] | undefined;
   if (question && choice) {
     toggleAnswer(question, choice);

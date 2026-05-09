@@ -24,6 +24,16 @@ export type ReadingSet = {
   questions: Question[];
 };
 
+export type ExamPaper = {
+  id: string;
+  title: string;
+  description: string;
+  updatedContext: string;
+  sourceNotes: string[];
+  readingSets: ReadingSet[];
+  questions: Question[];
+};
+
 export type ExamRules = {
   totalQuestions: number;
   durationMinutes: number;
