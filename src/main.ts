@@ -44,6 +44,97 @@ const formatTime = (seconds: number): string => {
 const answeredCount = (): number =>
   currentQuestions().filter((question) => (answers[question.id] ?? []).length > 0).length;
 
+const formatChoiceIds = (choiceIds: Choice["id"][] = []): string =>
+  choiceIds.length === 0 ? "未作答" : [...choiceIds].sort().join("、");
+
+const choiceText = (question: Question, choiceId: Choice["id"]): string =>
+  question.choices.find((choice) => choice.id === choiceId)?.text ?? choiceId;
+
+const topicStudyNotes: Record<string, string> = {
+  "AI 安全":
+    "AI 安全題常考的是風險辨識：個資外洩、模型幻覺、偏見、資料中毒、提示注入都不是單靠模型變大就能解決。答題時先判斷風險發生在哪裡：資料輸入、模型訓練、檢索資料、輸出使用，或上線後監控。",
+  "AI 治理":
+    "AI 治理重點是責任與流程，而不是單一技術。高影響場景通常需要風險分級、紀錄、監控、人工覆核、申訴管道與事故處理；透明度題則常和告知使用者、標示 AI 生成內容、來源可追溯有關。",
+  "AI 資安":
+    "LLM 資安題要分清楚提示注入、敏感資訊揭露、不安全輸出處理與資料中毒。若題目提到外部文件、網頁、評論被檢索進模型上下文，通常要想到間接提示注入與 RAG 信任邊界。",
+  "AutoML":
+    "AutoML 是自動化建模流程的一部分，例如模型選擇、特徵處理、超參數搜尋。它不能替代問題定義、資料治理、公平性檢查、部署監控與責任判斷。",
+  "LLMOps":
+    "LLMOps 會比傳統 MLOps 多處理提示版本、RAG 檢索品質、輸出安全、幻覺評測、成本與延遲。看到生成式 AI 應用上線後的品質、成本、安全監控，多半是在考 LLMOps。",
+  "MLOps":
+    "MLOps 關注模型生命週期：版本控管、部署、監控、資料漂移、回訓、回滾與事件處理。若題目從原型走到正式服務，或上線後效果下降，通常不是單純換模型，而是 MLOps 問題。",
+  "Prompt Engineering":
+    "提示工程不是訓練模型，而是設計任務、角色、限制、輸出格式、上下文與拒答規則。教育、客服、文件草稿題常考如何用提示避免代寫、硬答或越權輸出。",
+  "人工智慧概念":
+    "AI 素養不只是會使用工具，而是理解 AI 能力、限制、風險與負責任使用。遇到使用者過度相信模型、不了解資料風險、無法查證輸出時，通常是在考 AI literacy。",
+  "數位孿生":
+    "數位孿生不是一般 dashboard。它會把實體系統資料連到模型，用於模擬、預測、最佳化或測試假設；若題目只是在看歷史報表，就不算完整的數位孿生能力。",
+  "機器學習任務":
+    "先看預測目標：連續數值多是迴歸，離散類別多是分類，沒有標籤找群體結構是分群。若還牽涉時間順序，可以是時間序列預測；若依獎懲學策略，才偏強化學習。",
+  "機器學習方法":
+    "監督式學習需要標記答案；非監督式學習找資料結構；強化學習靠獎勵回饋學策略；聯邦學習是多方資料不集中時共同訓練。答題時不要只看資料型態，要看訓練訊號。",
+  "機器學習概念":
+    "訓練集表現好不代表上線表現好。常見問題包含過擬合、資料分布差異、資料漂移、標籤定義改變與環境變化。正式服務要靠驗證集、測試集與上線監控確認泛化能力。",
+  "深度學習":
+    "CNN 常見於影像局部特徵；Transformer 擅長處理序列與上下文；語音、影像、文字任務都可能用深度學習。答題時先辨識輸入資料型態與輸出需求。",
+  "深度學習任務":
+    "影像分類只判斷整張圖類別；物件偵測要框出位置與類別；影像分割要到像素級區域。題目若出現框出、定位、標示位置，通常不是單純分類。",
+  "生成式 AI":
+    "生成式 AI 題常考 Prompt、RAG、AIGC、embedding、幻覺。RAG 是拿外部資料補上下文，embedding 是把內容轉成向量做語意檢索，來源引用與拒答可以降低幻覺誤用。",
+  "聯邦學習":
+    "聯邦學習適合多方不能集中原始資料的情境，但不代表完全無隱私風險。仍要注意資料分布不一致、通訊成本、模型更新洩漏與安全聚合等治理問題。",
+  "資料科學流程":
+    "資料科學不是直接丟模型。常見流程包含定義問題與指標、資料蒐集、清理、特徵工程、切分資料、訓練、評估、部署與監控。資料品質常是模型效果上限。",
+  "遷移學習":
+    "遷移學習適合新任務資料較少、但已有相關任務的預訓練模型時使用。它不是直接免驗證，仍需要用新場域資料微調、測試，確認沒有 domain shift 問題。",
+  "雲端與邊緣運算":
+    "雲端適合集中訓練、跨場域分析與大規模運算；邊緣適合低延遲、斷線韌性與就近處理。即時告警、車載、工廠現場與農場控制常偏邊緣推論。"
+};
+
+const studyNoteFor = (question: Question): string =>
+  topicStudyNotes[question.topic] ??
+  "先判斷題目在問概念定義、任務類型、導入流程、上線營運或風險治理。認證題常用情境包裝名詞，關鍵是找出輸入資料、目標輸出、限制條件與責任邊界。";
+
+const renderWrongAnswerStudy = (question: Question, selected: Choice["id"][]): string => {
+  const missedCorrect = question.answer.filter((choiceId) => !selected.includes(choiceId));
+  const extraSelected = selected.filter((choiceId) => !question.answer.includes(choiceId));
+  const correctTexts = question.answer
+    .map((choiceId) => `${choiceId}. ${choiceText(question, choiceId)}`)
+    .join(" / ");
+  const selectedTexts =
+    selected.length === 0
+      ? "未作答"
+      : selected.map((choiceId) => `${choiceId}. ${choiceText(question, choiceId)}`).join(" / ");
+
+  return `
+    <div class="study-note">
+      <div>
+        <strong>正解</strong>
+        <p>${formatChoiceIds(question.answer)}：${correctTexts}</p>
+      </div>
+      <div>
+        <strong>你的選擇</strong>
+        <p>${selectedTexts}</p>
+      </div>
+      ${
+        missedCorrect.length > 0
+          ? `<p><strong>漏掉的關鍵：</strong>${missedCorrect
+              .map((choiceId) => `${choiceId} 是題目限制下最符合的選項`)
+              .join("；")}。</p>`
+          : ""
+      }
+      ${
+        extraSelected.length > 0
+          ? `<p><strong>容易誤選的地方：</strong>${extraSelected
+              .map((choiceId) => `${choiceId} 雖然看似相關，但不符合本題的主要目標或限制`)
+              .join("；")}。</p>`
+          : ""
+      }
+      <p><strong>補強知識：</strong>${studyNoteFor(question)}</p>
+    </div>
+  `;
+};
+
 const beginExam = (paperId: string = selectedPaperId): void => {
   selectedPaperId = paperId;
   answers = {};
@@ -175,7 +266,10 @@ const renderQuestion = (question: Question): string => {
       </div>
       ${
         submitted
-          ? `<p class="explanation"><strong>${correct ? "答對" : "需複習"}：</strong>${question.explanation}</p>`
+          ? `<div class="explanation">
+              <p><strong>${correct ? "答對" : "需複習"}：</strong>${question.explanation}</p>
+              ${correct ? "" : renderWrongAnswerStudy(question, selected)}
+            </div>`
           : ""
       }
     </article>

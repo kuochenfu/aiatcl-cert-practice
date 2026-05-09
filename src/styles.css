@@ -316,7 +316,8 @@ dd {
 }
 
 .passage p,
-.explanation {
+.explanation,
+.study-note {
   color: #43524b;
   line-height: 1.75;
 }
@@ -372,6 +373,33 @@ dd {
   margin: 14px 0 0;
   padding-top: 12px;
   border-top: 1px solid rgba(22, 33, 27, 0.1);
+}
+
+.explanation p {
+  margin-bottom: 8px;
+}
+
+.study-note {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid rgba(189, 93, 76, 0.24);
+  border-radius: 8px;
+  background: #fff4ed;
+}
+
+.study-note div {
+  display: grid;
+  gap: 4px;
+}
+
+.study-note strong {
+  color: #50261f;
+}
+
+.study-note p {
+  margin: 0;
 }
 
 .score-grid {
